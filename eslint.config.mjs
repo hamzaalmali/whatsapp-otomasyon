@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Electron/Prisma build output — not source, shouldn't be linted:
+    "dist-electron/**",
+    "release/**",
+    "resources/**",
+    "generated/**",
   ]),
 ]);
 

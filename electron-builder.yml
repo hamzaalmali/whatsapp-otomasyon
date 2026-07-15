@@ -1,0 +1,44 @@
+appId: com.otomasyon.whatsapp
+productName: WhatsApp Otomasyon
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist-electron/**/*
+  - package.json
+  - "!**/*.map"
+
+# better-sqlite3's .node binary can't execute from inside the asar archive.
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+
+# Native modules are rebuilt against Electron's ABI via the "postinstall"
+# script (electron-builder install-app-deps), so skip electron-builder's own
+# rebuild pass to avoid doing it twice.
+npmRebuild: false
+
+# Pre-assembled by scripts/prepare-resources.mjs (part of `npm run build`) —
+# copying .next/standalone directly via extraResources filters silently
+# dropped nested packages (e.g. node_modules/next itself).
+extraResources:
+  - from: resources
+    to: .
+    filter: ["**/*"]
+
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.business
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+win:
+  target:
+    - nsis
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

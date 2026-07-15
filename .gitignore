@@ -17,8 +17,17 @@
 /.next/
 /out/
 
-# production
-/build
+# electron build output (build/ itself holds committed icons/entitlements, not output)
+/dist-electron/
+/release/
+/resources/
+
+# prisma generated client
+/generated/
+/prisma/dev.db
+/prisma/dev.db-journal
+/prisma/dev.db-wal
+/prisma/dev.db-shm
 
 # misc
 .DS_Store
@@ -32,6 +41,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel

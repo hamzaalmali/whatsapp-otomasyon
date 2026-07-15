@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Diagnostic-only table used to verify the Electron -> IPC -> Prisma -> SQLite
+// round trip during initial scaffolding (see electron/ipc/system.ts).
+model SystemPing {
+  id         Int      @id @default(autoincrement())
+  respondedAt DateTime @default(now())
+}
+
+model Session {
+  id              String    @id @default(cuid())
+  name            String
+  phoneNumber     String?
+  // pending | qr | connected | disconnected
+  status          String    @default("pending")
+  qrCode          String?
+  createdAt       DateTime  @default(now())
+  lastConnectedAt DateTime?
+
+  conversations   Conversation[]
+  campaigns       Campaign[]
+  automationRules AutomationRule[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  tags      String   @default("[]") // JSON-encoded string[]
+  notes     String?
+  createdAt DateTime @default(now())
+
+  conversations Conversation[]
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  contactId     String
+  sessionId     String
+  // open | pending | closed
+  status        String    @default("open")
+  unreadCount   Int       @default(0)
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([contactId, sessionId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  // in | out
+  direction      String
+  // text | image | video | audio | document | sticker | other
+  type           String   @default("text")
+  body           String?
+  mediaUrl       String?
+  // pending | sent | delivered | read | failed
+  status         String   @default("pending")
+  wppMessageId   String?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model Campaign {
+  id              String    @id @default(cuid())
+  sessionId       String
+  name            String
+  messageTemplate String
+  // draft | running | paused | completed | cancelled
+  status          String    @default("draft")
+  delayMinSec     Int       @default(3)
+  delayMaxSec     Int       @default(8)
+  dailyCap        Int?
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  session    Session             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  recipients CampaignRecipient[]
+}
+
+model CampaignRecipient {
+  id         String    @id @default(cuid())
+  campaignId String
+  phone      String
+  name       String?
+  variables  String    @default("{}") // JSON-encoded Record<string, string>
+  // pending | sending | sent | failed
+  status     String    @default("pending")
+  error      String?
+  sentAt     DateTime?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+}
+
+model AutomationRule {
+  id            String  @id @default(cuid())
+  sessionId     String?
+  name          String
+  // keyword | contains | exact | regex
+  triggerType   String
+  triggerValue  String
+  // text | media
+  responseType  String  @default("text")
+  responseValue String
+  enabled       Boolean @default(true)
+  priority      Int     @default(0)
+
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
