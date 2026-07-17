@@ -28,6 +28,7 @@ const external = [
   "@wppconnect-team/wppconnect",
   "electron-log",
   "electron-log/*",
+  "electron-updater",
   "p-queue",
   "exceljs",
   "libphonenumber-js",

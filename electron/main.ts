@@ -9,6 +9,9 @@ import { registerIpcHandlers } from "./ipc";
 import { registerMainWindow } from "./ipc/broadcast";
 import { restoreSessions, closeAllSessions } from "./services/whatsapp/session-manager";
 import { resumeRunningCampaigns } from "./services/campaigns/campaign-worker";
+import { initAutoUpdater, checkForUpdates } from "./services/updater";
+
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 log.initialize();
 log.transports.file.level = "info";
@@ -55,6 +58,12 @@ if (!gotLock) {
 
       restoreSessions().catch((error) => log.error("Failed to restore sessions", error));
       resumeRunningCampaigns().catch((error) => log.error("Failed to resume campaigns", error));
+
+      if (app.isPackaged) {
+        initAutoUpdater();
+        checkForUpdates();
+        setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
+      }
     } catch (error) {
       log.error("Failed to start application", error);
       app.quit();

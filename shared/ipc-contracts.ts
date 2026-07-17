@@ -4,10 +4,20 @@
  * (lib/ipc-client.ts) so a channel can never drift out of sync between the two sides.
  */
 
-import type { SessionQrEvent, SessionStatusEvent, CampaignProgressEvent } from "./types";
+import type {
+  SessionQrEvent,
+  SessionStatusEvent,
+  CampaignProgressEvent,
+  UpdateStatusEvent,
+} from "./types";
 
 export const IPC_CHANNELS = {
   systemPing: "system:ping",
+
+  updatesCheck: "updates:check",
+  updatesInstall: "updates:install",
+  // Pushed from main -> renderer as an update check/download progresses.
+  updatesStatusEvent: "updates:status",
 
   sessionsList: "sessions:list",
   sessionsCreate: "sessions:create",
@@ -40,4 +50,5 @@ export interface IpcEventPayloads {
   [IPC_CHANNELS.sessionsQrEvent]: SessionQrEvent;
   [IPC_CHANNELS.sessionsStatusEvent]: SessionStatusEvent;
   [IPC_CHANNELS.campaignsProgressEvent]: CampaignProgressEvent;
+  [IPC_CHANNELS.updatesStatusEvent]: UpdateStatusEvent;
 }

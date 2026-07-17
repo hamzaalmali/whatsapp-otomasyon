@@ -42,3 +42,12 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+
+# Release binaries are published to a separate PUBLIC repo (not the private
+# source repo) so electron-updater can fetch update feeds/assets without an
+# embedded auth token. CI publishes here via RELEASES_TOKEN; end-user installs
+# never need any token to check for or download updates.
+publish:
+  provider: github
+  owner: hamzaalmali
+  repo: whatsapp-otomasyon-releases

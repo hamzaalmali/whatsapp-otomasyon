@@ -88,3 +88,18 @@ export interface DownloadTemplateResult {
   saved: boolean;
   filePath?: string;
 }
+
+export type UpdateStatus =
+  | "checking"
+  | "available"
+  | "not-available"
+  | "downloading"
+  | "downloaded"
+  | "error";
+
+export interface UpdateStatusEvent {
+  status: UpdateStatus;
+  version?: string;
+  percent?: number;
+  message?: string;
+}
