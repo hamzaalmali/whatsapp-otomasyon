@@ -3,14 +3,21 @@ name: Release
 # Triggered by pushing a version tag, e.g.:
 #   git tag v0.2.0 && git push origin v0.2.0
 # Builds the app on macOS (dmg + zip) and Windows (nsis exe) and publishes
-# the artifacts as a GitHub Release on the separate PUBLIC releases repo
-# (hamzaalmali/whatsapp-otomasyon-releases), which is also the update feed
-# electron-updater checks from at runtime. Requires a RELEASES_TOKEN repo
-# secret: a GitHub PAT with contents:read/write on that releases repo.
+# the artifacts as a GitHub Release on this repo, which is also the update
+# feed electron-updater checks from at runtime.
+#
+# TEMPORARY for testing: uses the workflow's default GITHUB_TOKEN against
+# this (currently public) repo, so no extra secret is needed. Once testing
+# is done and the source repo goes back to private, switch back to a
+# separate public releases repo + scoped RELEASES_TOKEN PAT (see git history
+# for the previous setup).
 on:
   push:
     tags:
       - "v*.*.*"
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -33,4 +40,4 @@ jobs:
 
       - run: npm run ${{ matrix.script }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
