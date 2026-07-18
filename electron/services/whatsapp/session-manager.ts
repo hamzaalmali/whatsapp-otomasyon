@@ -21,7 +21,12 @@ const stopping = new Set<string>();
 // Consecutive QR-timeout failures per session, so a persistently broken
 // environment (e.g. no usable Chromium) can't spin an infinite retry loop.
 const retryCounts = new Map<string, number>();
-const MAX_QR_RETRIES = 8;
+// Kept low and spaced out on purpose: WhatsApp's abuse detection flags
+// accounts that see a burst of rapid device-link attempts from an
+// unofficial client, independent of whether any message was ever sent.
+// Fewer, slower retries look less like automated pairing spam.
+const MAX_QR_RETRIES = 3;
+const QR_RETRY_DELAY_MS = 15_000;
 
 export function getClient(sessionId: string): Whatsapp | undefined {
   return clients.get(sessionId);
@@ -155,7 +160,7 @@ export async function startSession(sessionId: string): Promise<void> {
     }
 
     log.warn(`[wpp:${sessionId}] QR not scanned in time (attempt ${retries}/${MAX_QR_RETRIES}), retrying`, err);
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, QR_RETRY_DELAY_MS));
     return startSession(sessionId);
   }
 
@@ -206,13 +211,27 @@ export async function closeAllSessions(): Promise<void> {
   await Promise.all([...clients.keys()].map((id) => stopSession(id)));
 }
 
-/** Reconnects sessions that were connected (or mid-QR) when the app last closed. */
+/**
+ * Reconnects sessions that were actually connected when the app last
+ * closed. Sessions still stuck on "qr"/"pending" are deliberately NOT
+ * auto-retried — retrying a pairing that never completed on every app
+ * launch is exactly the kind of repeated device-link burst that gets
+ * WhatsApp accounts flagged. They're marked disconnected instead (there's
+ * no live client behind that stale QR after a restart anyway), so the UI
+ * shows a "Yeniden bağlan" button the user can click when they're ready.
+ */
 export async function restoreSessions(): Promise<void> {
   const db = getDb();
-  const sessions = await db.session.findMany({
-    where: { status: { in: ["connected", "qr", "pending"] } },
-  });
-  for (const session of sessions) {
+
+  const stale = await db.session.findMany({ where: { status: { in: ["qr", "pending"] } } });
+  for (const session of stale) {
+    await updateSessionStatus(session.id, "disconnected").catch((err) =>
+      log.error(`[wpp] failed to mark stale session ${session.id} disconnected`, err),
+    );
+  }
+
+  const connected = await db.session.findMany({ where: { status: "connected" } });
+  for (const session of connected) {
     startSession(session.id).catch((err) =>
       log.error(`[wpp] failed to restore session ${session.id}`, err),
     );
