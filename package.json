@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "prisma generate && electron-builder install-app-deps",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate"
   },
