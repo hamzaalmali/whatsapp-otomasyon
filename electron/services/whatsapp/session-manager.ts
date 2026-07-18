@@ -1,6 +1,13 @@
 import path from "node:path";
 import { app } from "electron";
 import { create, type Whatsapp, type Message } from "@wppconnect-team/wppconnect";
+import { computeExecutablePath, detectBrowserPlatform, Browser } from "@puppeteer/browsers";
+// PUPPETEER_REVISIONS exists at runtime but isn't part of puppeteer-core's
+// public .d.ts surface, so it has to be pulled off the module manually.
+import * as puppeteerCore from "puppeteer-core";
+const { PUPPETEER_REVISIONS } = puppeteerCore as unknown as {
+  PUPPETEER_REVISIONS: Readonly<{ chrome: string }>;
+};
 import log from "electron-log/main";
 import { getDb } from "../../db/client";
 import { sendToRenderer } from "../../ipc/broadcast";
@@ -22,6 +29,30 @@ export function getClient(sessionId: string): Whatsapp | undefined {
 
 function getTokensDir(): string {
   return path.join(app.getPath("userData"), "wpp-tokens");
+}
+
+/**
+ * Packaged builds don't have puppeteer's dev-only postinstall download
+ * (~/.cache/puppeteer) available, so a bundled Chrome is shipped as an
+ * extraResource instead (see scripts/download-chrome.mjs) and resolved
+ * here. In dev, returning undefined lets puppeteer fall back to its own
+ * normal cache-dir resolution, unchanged.
+ */
+function getBundledChromePath(): string | undefined {
+  if (!app.isPackaged) return undefined;
+
+  const platform = detectBrowserPlatform();
+  if (!platform) {
+    log.error("[wpp] could not detect browser platform for bundled Chrome");
+    return undefined;
+  }
+
+  return computeExecutablePath({
+    cacheDir: path.join(process.resourcesPath, "chrome-cache"),
+    browser: Browser.CHROME,
+    buildId: PUPPETEER_REVISIONS.chrome,
+    platform,
+  });
 }
 
 async function updateSessionStatus(
@@ -86,10 +117,11 @@ export async function startSession(sessionId: string): Promise<void> {
     client = await create({
       session: sessionId,
       folderNameToken: getTokensDir(),
-      // Use Puppeteer's own bundled Chromium rather than depending on the
-      // end user having a system Chrome install.
+      // Use Puppeteer's own Chromium rather than depending on the end user
+      // having a system Chrome install.
       useChrome: false,
       headless: true,
+      puppeteerOptions: { executablePath: getBundledChromePath() },
       catchQR: (qrCode, _asciiQR, attempt) => {
         updateSessionStatus(sessionId, "qr", { qrCode }).catch((err) =>
           log.error(`[wpp:${sessionId}] failed to persist QR`, err),
@@ -115,6 +147,10 @@ export async function startSession(sessionId: string): Promise<void> {
     retryCounts.set(sessionId, retries);
     if (retries > MAX_QR_RETRIES) {
       log.error(`[wpp:${sessionId}] gave up after ${retries} failed QR attempts`, err);
+      retryCounts.delete(sessionId);
+      await updateSessionStatus(sessionId, "disconnected").catch((updateErr) =>
+        log.error(`[wpp:${sessionId}] failed to persist give-up status`, updateErr),
+      );
       throw err;
     }
 
