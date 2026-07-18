@@ -19,6 +19,12 @@ on:
 permissions:
   contents: write
 
+env:
+  # Only needed to satisfy `prisma generate`'s config loading in CI (no .env
+  # file there); the packaged app never uses this — it opens the DB via its
+  # own userData-relative path at runtime, not this datasource URL.
+  DATABASE_URL: "file:./prisma/dev.db"
+
 jobs:
   release:
     strategy:
