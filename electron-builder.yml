@@ -51,3 +51,7 @@ publish:
   provider: github
   owner: hamzaalmali
   repo: whatsapp-otomasyon
+  # Auto-publish instead of leaving a draft — electron-updater's default feed
+  # only considers published (non-draft) releases, so a draft would silently
+  # never be picked up by installed apps.
+  releaseType: release

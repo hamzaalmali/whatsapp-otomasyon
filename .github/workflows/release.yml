@@ -3,8 +3,16 @@ name: Release
 # Triggered by pushing a version tag, e.g.:
 #   git tag v0.2.0 && git push origin v0.2.0
 # Builds the app on macOS (dmg + zip) and Windows (nsis exe) and publishes
-# the artifacts as a GitHub Release on this repo, which is also the update
+# both as a single GitHub Release on this repo, which is also the update
 # feed electron-updater checks from at runtime.
+#
+# The two build jobs run SEQUENTIALLY (release-win needs release-mac), not
+# in parallel: electron-builder's GitHub publisher looks up an existing
+# release by tag and appends assets to it, but if both jobs run at once
+# neither sees the other's not-yet-created release and each ends up
+# creating its own duplicate. Running them one after another avoids that
+# race — release-win uploads its exe into the release release-mac already
+# created.
 #
 # TEMPORARY for testing: uses the workflow's default GITHUB_TOKEN against
 # this (currently public) repo, so no extra secret is needed. Once testing
@@ -26,25 +34,27 @@ env:
   DATABASE_URL: "file:./prisma/dev.db"
 
 jobs:
-  release:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            script: release:mac
-          - os: windows-latest
-            script: release:win
-    runs-on: ${{ matrix.os }}
+  release-mac:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - run: npm ci
+      - run: npm run release:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: npm run ${{ matrix.script }}
+  release-win:
+    needs: release-mac
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
