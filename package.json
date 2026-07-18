@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-otomasyon",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "wppconnect tabanlı, toplu mesaj/kampanya, otomasyon ve CRM özellikli WhatsApp masaüstü uygulaması",
   "private": true,
   "main": "dist-electron/main.js",
