@@ -6,14 +6,17 @@ name: Release
 # both as a single GitHub Release on this repo, which is also the update
 # feed electron-updater checks from at runtime.
 #
-# The two build jobs run SEQUENTIALLY (release-win needs release-mac), not
-# in parallel: electron-builder's GitHub publisher only reuses an existing
-# *draft* release matching the tag — if both jobs ran at once, neither
-# would see the other's not-yet-created release and each would create its
-# own duplicate. Both jobs leave the release as a draft (electron-builder's
-# default); a final publish-release job flips it to published only after
-# both platforms' assets have landed, since electron-updater's feed ignores
-# drafts.
+# electron-builder's own "find or create a GitHub release for this tag"
+# logic (via --publish always) turned out to be unreliable across separate
+# jobs/runners: mac and win each ended up creating their own release object
+# for the same tag instead of sharing one, even when run sequentially. To
+# make this deterministic, a single create-release job creates exactly one
+# draft release up front; mac and win build with --publish never (so
+# electron-builder never touches GitHub itself) and then explicitly
+# `gh release upload` their own files onto that one release, addressed by
+# tag — since only one release ever has that tag, there's no ambiguity.
+# A final job flips draft -> false once both platforms are attached
+# (electron-updater's feed ignores drafts).
 #
 # TEMPORARY for testing: uses the workflow's default GITHUB_TOKEN against
 # this (currently public) repo, so no extra secret is needed. Once testing
@@ -35,7 +38,21 @@ env:
   DATABASE_URL: "file:./prisma/dev.db"
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete any stray release already on this tag, then create one clean draft
+        run: |
+          for id in $(gh api "repos/${{ github.repository }}/releases" --jq '.[] | select(.tag_name=="${{ github.ref_name }}") | .id'); do
+            echo "Deleting stray release id=$id"
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$id"
+          done
+          gh release create "${{ github.ref_name }}" --draft --title "${{ github.ref_name }}" --notes "WhatsApp Otomasyon ${{ github.ref_name }}" --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   release-mac:
+    needs: create-release
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,12 +60,14 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run release:mac
+      - run: npm run build
+      - run: npx electron-builder --mac --publish never
+      - run: gh release upload "${{ github.ref_name }}" release/*.dmg release/*.zip release/*.blockmap release/latest-mac.yml --clobber --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-win:
-    needs: release-mac
+    needs: create-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +75,10 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run release:win
+      - run: npm run build
+      - run: npx electron-builder --win --publish never
+      - shell: bash
+        run: gh release upload "${{ github.ref_name }}" release/*.exe release/*.blockmap release/latest.yml --clobber --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -64,6 +86,6 @@ jobs:
     needs: [release-mac, release-win]
     runs-on: ubuntu-latest
     steps:
-      - run: gh release edit "${{ github.ref_name }}" --draft=false --repo hamzaalmali/whatsapp-otomasyon
+      - run: gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

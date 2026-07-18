@@ -43,17 +43,18 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
 
+# Used by the local `npm run release:mac`/`release:win` convenience scripts
+# (electron-builder --publish always talks to GitHub directly). CI does NOT
+# use electron-builder's publish step at all (see .github/workflows/release.yml
+# — it builds with --publish never and uploads assets itself via `gh release
+# upload` onto a release it creates explicitly, which sidesteps electron-builder's
+# own release lookup turning out to be unreliable across separate CI jobs).
+#
 # TEMPORARY for testing: publishing straight to the (now public) source repo
-# using the workflow's default GITHUB_TOKEN, so no PAT setup is needed yet.
-# Before going back to a private source repo, switch this back to the
-# separate public releases repo (see git history) and use a scoped PAT.
+# using a GitHub token with plain repo access, so no separate PAT setup is
+# needed yet. Before going back to a private source repo, switch this back to
+# the separate public releases repo (see git history) and use a scoped PAT.
 publish:
   provider: github
   owner: hamzaalmali
   repo: whatsapp-otomasyon
-  # Left as the default draft: electron-builder's GitHub publisher only
-  # reuses an *existing draft* release matching the tag (it always creates a
-  # brand-new release if the one it finds is already published), which is
-  # what lets the sequential mac -> win jobs share one release instead of
-  # each creating its own. The CI workflow's final job flips draft -> false
-  # once both platforms' assets are uploaded.
