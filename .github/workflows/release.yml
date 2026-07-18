@@ -7,12 +7,13 @@ name: Release
 # feed electron-updater checks from at runtime.
 #
 # The two build jobs run SEQUENTIALLY (release-win needs release-mac), not
-# in parallel: electron-builder's GitHub publisher looks up an existing
-# release by tag and appends assets to it, but if both jobs run at once
-# neither sees the other's not-yet-created release and each ends up
-# creating its own duplicate. Running them one after another avoids that
-# race — release-win uploads its exe into the release release-mac already
-# created.
+# in parallel: electron-builder's GitHub publisher only reuses an existing
+# *draft* release matching the tag — if both jobs ran at once, neither
+# would see the other's not-yet-created release and each would create its
+# own duplicate. Both jobs leave the release as a draft (electron-builder's
+# default); a final publish-release job flips it to published only after
+# both platforms' assets have landed, since electron-updater's feed ignores
+# drafts.
 #
 # TEMPORARY for testing: uses the workflow's default GITHUB_TOKEN against
 # this (currently public) repo, so no extra secret is needed. Once testing
@@ -56,5 +57,13 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run release:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-release:
+    needs: [release-mac, release-win]
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release edit "${{ github.ref_name }}" --draft=false --repo hamzaalmali/whatsapp-otomasyon
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

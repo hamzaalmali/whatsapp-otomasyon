@@ -51,7 +51,9 @@ publish:
   provider: github
   owner: hamzaalmali
   repo: whatsapp-otomasyon
-  # Auto-publish instead of leaving a draft — electron-updater's default feed
-  # only considers published (non-draft) releases, so a draft would silently
-  # never be picked up by installed apps.
-  releaseType: release
+  # Left as the default draft: electron-builder's GitHub publisher only
+  # reuses an *existing draft* release matching the tag (it always creates a
+  # brand-new release if the one it finds is already published), which is
+  # what lets the sequential mac -> win jobs share one release instead of
+  # each creating its own. The CI workflow's final job flips draft -> false
+  # once both platforms' assets are uploaded.
