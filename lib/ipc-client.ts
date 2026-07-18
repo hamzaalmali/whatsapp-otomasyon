@@ -7,8 +7,6 @@ import type {
   ImportRecipientsResult,
 } from "@/shared/types";
 
-
-
 function getApi() {
   if (typeof window === "undefined" || !window.api) {
     throw new Error("window.api is not available (not running inside the Electron renderer)");
@@ -22,6 +20,7 @@ export const ipc = {
     list: () => getApi().invoke(IPC_CHANNELS.sessionsList) as Promise<SessionDTO[]>,
     create: (name: string) => getApi().invoke(IPC_CHANNELS.sessionsCreate, name) as Promise<SessionDTO>,
     remove: (id: string) => getApi().invoke(IPC_CHANNELS.sessionsRemove, id) as Promise<void>,
+    reconnect: (id: string) => getApi().invoke(IPC_CHANNELS.sessionsReconnect, id) as Promise<void>,
   },
   campaigns: {
     list: () => getApi().invoke(IPC_CHANNELS.campaignsList) as Promise<CampaignDTO[]>,

@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   sessionsList: "sessions:list",
   sessionsCreate: "sessions:create",
   sessionsRemove: "sessions:remove",
+  sessionsReconnect: "sessions:reconnect",
   // Pushed from main -> renderer as a session's QR code or status changes.
   sessionsQrEvent: "sessions:qr",
   sessionsStatusEvent: "sessions:status",

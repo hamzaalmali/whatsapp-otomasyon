@@ -44,4 +44,8 @@ export function registerSessionsIpc(): void {
     const db = getDb();
     await db.session.delete({ where: { id } });
   });
+
+  ipcMain.handle(IPC_CHANNELS.sessionsReconnect, async (_event, id: string): Promise<void> => {
+    startSession(id).catch((err) => log.error(`[wpp:${id}] failed to reconnect`, err));
+  });
 }

@@ -73,6 +73,14 @@ export function useCreateSession() {
   });
 }
 
+export function useReconnectSession() {
+  return useMutation({
+    mutationFn: (id: string) => ipc.sessions.reconnect(id),
+    onSuccess: () => toast.success("Yeniden bağlanılıyor, QR kod bekleniyor"),
+    onError: (error) => toast.error(`Yeniden bağlanılamadı: ${errorMessage(error)}`),
+  });
+}
+
 export function useRemoveSession() {
   const queryClient = useQueryClient();
   return useMutation({

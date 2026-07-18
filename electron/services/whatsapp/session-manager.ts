@@ -8,6 +8,13 @@ import { IPC_CHANNELS } from "../../../shared/ipc-contracts";
 import type { SessionStatus } from "../../../shared/types";
 
 const clients = new Map<string, Whatsapp>();
+// Sessions the user explicitly stopped/removed — checked after a failed
+// create() so we don't auto-retry a QR flow the user just cancelled.
+const stopping = new Set<string>();
+// Consecutive QR-timeout failures per session, so a persistently broken
+// environment (e.g. no usable Chromium) can't spin an infinite retry loop.
+const retryCounts = new Map<string, number>();
+const MAX_QR_RETRIES = 8;
 
 export function getClient(sessionId: string): Whatsapp | undefined {
   return clients.get(sessionId);
@@ -72,30 +79,51 @@ async function handleIncomingMessage(sessionId: string, message: Message): Promi
 
 export async function startSession(sessionId: string): Promise<void> {
   if (clients.has(sessionId)) return;
+  stopping.delete(sessionId);
 
-  const client = await create({
-    session: sessionId,
-    folderNameToken: getTokensDir(),
-    // Use Puppeteer's own bundled Chromium rather than depending on the
-    // end user having a system Chrome install.
-    useChrome: false,
-    headless: true,
-    catchQR: (qrCode, _asciiQR, attempt) => {
-      updateSessionStatus(sessionId, "qr", { qrCode }).catch((err) =>
-        log.error(`[wpp:${sessionId}] failed to persist QR`, err),
-      );
-      sendToRenderer(IPC_CHANNELS.sessionsQrEvent, { sessionId, qrDataUrl: qrCode, attempt });
-    },
-    statusFind: (status) => {
-      log.info(`[wpp:${sessionId}] status: ${status}`);
-      if (status === "browserClose" || status === "qrReadFail" || status === "qrReadError") {
-        updateSessionStatus(sessionId, "disconnected").catch((err) =>
-          log.error(`[wpp:${sessionId}] failed to persist status`, err),
+  let client: Whatsapp;
+  try {
+    client = await create({
+      session: sessionId,
+      folderNameToken: getTokensDir(),
+      // Use Puppeteer's own bundled Chromium rather than depending on the
+      // end user having a system Chrome install.
+      useChrome: false,
+      headless: true,
+      catchQR: (qrCode, _asciiQR, attempt) => {
+        updateSessionStatus(sessionId, "qr", { qrCode }).catch((err) =>
+          log.error(`[wpp:${sessionId}] failed to persist QR`, err),
         );
-      }
-    },
-  });
+        sendToRenderer(IPC_CHANNELS.sessionsQrEvent, { sessionId, qrDataUrl: qrCode, attempt });
+      },
+      statusFind: (status) => {
+        log.info(`[wpp:${sessionId}] status: ${status}`);
+        if (status === "browserClose" || status === "qrReadFail" || status === "qrReadError") {
+          updateSessionStatus(sessionId, "disconnected").catch((err) =>
+            log.error(`[wpp:${sessionId}] failed to persist status`, err),
+          );
+        }
+      },
+    });
+  } catch (err) {
+    if (stopping.delete(sessionId)) {
+      log.info(`[wpp:${sessionId}] stopped before connecting, not retrying`);
+      return;
+    }
 
+    const retries = (retryCounts.get(sessionId) ?? 0) + 1;
+    retryCounts.set(sessionId, retries);
+    if (retries > MAX_QR_RETRIES) {
+      log.error(`[wpp:${sessionId}] gave up after ${retries} failed QR attempts`, err);
+      throw err;
+    }
+
+    log.warn(`[wpp:${sessionId}] QR not scanned in time (attempt ${retries}/${MAX_QR_RETRIES}), retrying`, err);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    return startSession(sessionId);
+  }
+
+  retryCounts.delete(sessionId);
   clients.set(sessionId, client);
 
   const wid = await client.getWid().catch(() => null);
@@ -125,6 +153,8 @@ export async function startSession(sessionId: string): Promise<void> {
  * the next startSession() for this id reconnects without a new QR scan.
  */
 export async function stopSession(sessionId: string, options: { logout?: boolean } = {}): Promise<void> {
+  stopping.add(sessionId);
+  retryCounts.delete(sessionId);
   const client = clients.get(sessionId);
   if (!client) return;
 

@@ -14,9 +14,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Loader2, Smartphone, QrCode } from "lucide-react";
+import { Trash2, Loader2, Smartphone, QrCode, RefreshCw } from "lucide-react";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
-import { useRemoveSession } from "@/lib/hooks/use-sessions";
+import { useRemoveSession, useReconnectSession } from "@/lib/hooks/use-sessions";
 import type { SessionDTO } from "@/shared/types";
 
 export function SessionCard({
@@ -28,6 +28,7 @@ export function SessionCard({
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const removeSession = useRemoveSession();
+  const reconnectSession = useReconnectSession();
 
   return (
     <Card className="transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-1 duration-300">
@@ -58,6 +59,18 @@ export function SessionCard({
               <Loader2 className="size-4 animate-spin" />
             )}
             {session.status === "qr" ? "QR kodunu göster ve okut" : "QR kodu hazırlanıyor..."}
+          </button>
+        )}
+
+        {session.status === "disconnected" && (
+          <button
+            type="button"
+            onClick={() => reconnectSession.mutate(session.id)}
+            disabled={reconnectSession.isPending}
+            className="flex items-center gap-2 rounded-xl border bg-muted/30 px-3 py-3 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`size-4 text-primary ${reconnectSession.isPending ? "animate-spin" : ""}`} />
+            {reconnectSession.isPending ? "Yeniden bağlanılıyor..." : "Yeniden bağlan"}
           </button>
         )}
 
